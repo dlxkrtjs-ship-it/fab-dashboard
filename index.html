@@ -66,6 +66,8 @@
   .leaflet-popup-content b{font-size:14px}
   .leaflet-tooltip{background:var(--panel);border:1px solid var(--border);color:var(--text);font-size:12px}
   .leaflet-container{font-family:inherit}
+  .leaflet-control-layers{background:var(--panel)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:8px!important;font-size:13px}
+  .leaflet-control-layers label{margin:2px 0}
   #empty{display:none;text-align:center;color:var(--muted);padding:30px;font-size:14px}
 </style>
 </head>
@@ -192,7 +194,13 @@ document.getElementById('stats').innerHTML=`
 
 // ---- 지도 ----
 const map=L.map('map',{worldCopyJump:true,scrollWheelZoom:true}).setView([30,60],2);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:12}).addTo(map);
+const darkLayer=L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:18});
+const satLayer=L.layerGroup([
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'&copy; Esri &mdash; Maxar, Earthstar Geographics',maxZoom:18}),
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png',{maxZoom:18})
+]);
+darkLayer.addTo(map);
+L.control.layers({'🗺️ 다크 지도':darkLayer,'🛰️ 위성 지도':satLayer},null,{position:'topright',collapsed:false}).addTo(map);
 
 let activeCompany='전체', activeType='전체', activeStatus='전체', query='';
 const markerById={};
