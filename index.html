@@ -236,4 +236,66 @@ function makeChips(el,items,getColor,onPick){
 makeChips('companyFilters',['전체',...companies],null,v=>activeCompany=v);
 makeChips('typeFilters',['전체','파운드리','메모리','IDM'],t=>COLORS[t],v=>activeType=v);
 makeChips('statusFilters',['전체','운영중','건설중'],null,v=>activeStatus=v);
-document.getElementById('search')
+document.getElementById('search').addEventListener('input',e=>{query=e.target.value;refresh();});
+
+// ---- 차트 ----
+Chart.defaults.color='#8b949e'; Chart.defaults.borderColor='#30363d'; Chart.defaults.font.family="'Segoe UI','Malgun Gothic',sans-serif";
+const byCompany={}; fabs.forEach(f=>byCompany[f.company]=(byCompany[f.company]||0)+f.capacity);
+const sorted=Object.entries(byCompany).sort((a,b)=>b[1]-a[1]);
+const cType={}; fabs.forEach(f=>{if(!cType[f.company])cType[f.company]=f.type;});
+new Chart(document.getElementById('capChart'),{type:'bar',
+ data:{labels:sorted.map(e=>e[0]),datasets:[{data:sorted.map(e=>e[1]),backgroundColor:sorted.map(e=>COLORS[cType[e[0]]]),borderRadius:5}]},
+ options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' 약 '+c.raw+'천 장/월'}}},scales:{x:{title:{display:true,text:'천 장/월 (추정)'}}}}});
+
+const byCountry={}; fabs.forEach(f=>{const c=f.location.split(' ')[0];byCountry[c]=(byCountry[c]||0)+f.capacity;});
+const cs=Object.entries(byCountry).sort((a,b)=>b[1]-a[1]);
+new Chart(document.getElementById('countryChart'),{type:'doughnut',
+ data:{labels:cs.map(e=>e[0]),datasets:[{data:cs.map(e=>e[1]),backgroundColor:['#4c9aff','#f2555a','#3fb950','#d29922','#a371f7','#f778ba','#79c0ff','#ffa657','#56d364','#e3b341','#8b949e'],borderColor:'#161b22',borderWidth:2}]},
+ options:{maintainAspectRatio:false,plugins:{legend:{position:'right'},tooltip:{callbacks:{label:c=>' '+c.label+': '+c.raw+'천 장/월 ('+(c.raw/totalCap*100).toFixed(1)+'%)'}}}}});
+
+const fCount={}; fabs.forEach(f=>fCount[f.company]=(fCount[f.company]||0)+1);
+const fc=Object.entries(fCount).sort((a,b)=>b[1]-a[1]);
+new Chart(document.getElementById('fabCountChart'),{type:'bar',
+ data:{labels:fc.map(e=>e[0]),datasets:[{data:fc.map(e=>e[1]),backgroundColor:fc.map(e=>COLORS[cType[e[0]]]),borderRadius:5}]},
+ options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{stepSize:2}}}}});
+
+const nodes=[['인텔',1.8],['TSMC',2],['삼성전자',2],['라피더스',2],['SMIC',7],['SK하이닉스',10],['마이크론',10],['글로벌파운드리스',12],['UMC',14]];
+new Chart(document.getElementById('nodeChart'),{type:'bar',
+ data:{labels:nodes.map(n=>n[0]),datasets:[{data:nodes.map(n=>n[1]),backgroundColor:nodes.map(n=>COLORS[cType[n[0]]]||'#8b949e'),borderRadius:5}]},
+ options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.raw+'nm급 (양산/근접 기준)'}}},scales:{y:{type:'logarithmic',title:{display:true,text:'nm (log)'}}}}});
+
+// ---- 테이블 ----
+let sortKey='capacity',sortDir=-1;
+const maxCap=Math.max(...fabs.map(f=>f.capacity));
+function renderTable(){
+  const tb=document.querySelector('#fabTable tbody');
+  const rows=visible().slice().sort((a,b)=>{
+    const x=a[sortKey],y=b[sortKey];
+    return (typeof x==='number'?x-y:String(x).localeCompare(String(y),'ko'))*sortDir;
+  });
+  document.getElementById('cnt').textContent='('+rows.length+'개)';
+  document.getElementById('empty').style.display=rows.length?'none':'block';
+  tb.innerHTML=rows.map(f=>'<tr data-id="'+f.id+'">'
+    +'<td><b>'+f.company+'</b></td><td>'+f.name+'</td><td>'+f.location+'</td>'
+    +'<td><span class="tag '+TAGC[f.type]+'">'+f.type+'</span></td><td>'+f.node+'</td>'
+    +'<td>'+f.capacity+'<span class="bar-bg"><span class="bar-fill" style="width:'+(f.capacity/maxCap*100).toFixed(0)+'%;background:'+COLORS[f.type]+'"></span></span></td>'
+    +'<td class="st '+(f.status==='운영중'?'op':'con')+'">● '+f.status+'</td></tr>').join('');
+  document.querySelectorAll('#fabTable th').forEach(th=>{
+    const a=th.querySelector('.arrow'); if(a)a.remove();
+    if(th.dataset.k===sortKey){const s=document.createElement('span');s.className='arrow';s.textContent=sortDir<0?'▼':'▲';th.appendChild(s);}
+  });
+  tb.querySelectorAll('tr').forEach(tr=>tr.onclick=()=>{
+    const f=fabs[+tr.dataset.id];
+    document.getElementById('map').scrollIntoView({behavior:'smooth',block:'center'});
+    map.flyTo([f.lat,f.lng],7,{duration:1.2});
+    setTimeout(()=>{const m=markerById[f.id]; if(m)m.openPopup();},1300);
+  });
+}
+document.querySelectorAll('#fabTable th').forEach(th=>th.onclick=()=>{
+  const k=th.dataset.k; if(sortKey===k)sortDir*=-1; else{sortKey=k;sortDir=-1;} renderTable();
+});
+
+refresh();
+</script>
+</body>
+</html>
