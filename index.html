@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>글로벌 반도체 팹 대시보드</title>
+<meta name="description" content="TSMC·삼성전자·SK하이닉스·인텔 등 주요 반도체 기업 51개 팹의 위치, 규모, 생산 캐파를 지도와 차트로 시각화한 대시보드">
+<meta property="og:title" content="글로벌 반도체 팹 대시보드">
+<meta property="og:description" content="12개 기업 51개 팹 · 위치·공정·생산 캐파 시각화 (2026년 기준 추정)">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌐</text></svg>">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e;
+    --foundry:#4c9aff; --memory:#f2555a; --idm:#3fb950; --accent:#d29922;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo',sans-serif;line-height:1.5}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 24px}
+  header{padding:30px 0 14px}
+  header h1{font-size:clamp(20px,4vw,27px);font-weight:700}
+  header p{color:var(--muted);font-size:13.5px;margin-top:6px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;padding:12px 0}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 18px}
+  .stat .v{font-size:24px;font-weight:700}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:2px}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0;align-items:center}
+  .toolbar .label{font-size:12px;color:var(--muted);min-width:44px}
+  .chip{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:16px;padding:5px 13px;font-size:13px;cursor:pointer;transition:.15s}
+  .chip:hover{border-color:#58a6ff}
+  .chip.active{border-color:var(--accent);background:#2d2308;color:var(--accent)}
+  .chip .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+  #search{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:16px;padding:6px 14px;font-size:13px;width:220px;outline:none}
+  #search:focus{border-color:#58a6ff}
+  #map{height:min(540px,62vh);margin:10px 0;border:1px solid var(--border);border-radius:12px;background:#0a0e14;z-index:0}
+  .legend{display:flex;gap:16px;padding:2px 0 4px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+  .legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px}
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 0}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+  .card h3{font-size:14.5px;margin-bottom:12px;font-weight:600}
+  .card .chart-wrap{position:relative;height:300px}
+  @media(max-width:860px){.charts{grid-template-columns:1fr}.card .chart-wrap{height:260px}#search{width:100%}}
+  .table-sec{padding:8px 0 34px}
+  .table-sec h3{font-size:14.5px;margin-bottom:10px}
+  .table-sec .hint{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .tbl-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);min-width:760px}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border)}
+  th{background:#1c2129;color:var(--muted);font-weight:600;cursor:pointer;white-space:nowrap;user-select:none;position:sticky;top:0}
+  th .arrow{font-size:10px;margin-left:3px}
+  tbody tr{cursor:pointer}
+  tbody tr:hover td{background:#1f2630}
+  tr:last-child td{border-bottom:none}
+  .tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap}
+  .tag.f{background:#0d2a4d;color:var(--foundry)} .tag.m{background:#4d1518;color:var(--memory)} .tag.i{background:#12351c;color:var(--idm)}
+  .st{font-size:11px;white-space:nowrap} .st.op{color:var(--idm)} .st.con{color:var(--accent)}
+  .bar-bg{background:#21262d;border-radius:4px;height:6px;width:90px;display:inline-block;vertical-align:middle;margin-left:8px}
+  .bar-fill{height:6px;border-radius:4px;display:block}
+  footer{padding:0 0 34px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);margin-top:4px;padding-top:16px}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--text);box-shadow:0 4px 16px rgba(0,0,0,.5)}
+  .leaflet-popup-content{font-size:13px;line-height:1.6}
+  .leaflet-popup-content b{font-size:14px}
+  .leaflet-tooltip{background:var(--panel);border:1px solid var(--border);color:var(--text);font-size:12px}
+  .leaflet-container{font-family:inherit}
+  #empty{display:none;text-align:center;color:var(--muted);padding:30px;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>🌐 글로벌 반도체 팹 대시보드</h1>
+  <p>주요 반도체 제조 기업의 팹(Fab) 위치·규모·생산 캐파 시각화 · 2026년 기준 추정치 · WPM = 월간 웨이퍼 투입량(12인치 환산, 천 장)</p>
+</header>
+
+<div class="stats" id="stats"></div>
+
+<div class="toolbar"><span class="label">기업</span><div id="companyFilters" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>
+<div class="toolbar">
+  <span class="label">유형</span><div id="typeFilters" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+  <span class="label" style="margin-left:8px">상태</span><div id="statusFilters" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+  <input id="search" type="search" placeholder="🔍 팹·지역 검색 (예: 평택, Arizona)">
+</div>
+
+<div id="map"></div>
+<div class="legend">
+  <span><span class="dot" style="background:var(--foundry)"></span>파운드리</span>
+  <span><span class="dot" style="background:var(--memory)"></span>메모리</span>
+  <span><span class="dot" style="background:var(--idm)"></span>IDM(종합)</span>
+  <span>● 원 크기 = 생산 캐파</span><span>◌ 점선 테두리 = 건설중</span><span>표에서 행 클릭 → 지도 이동</span>
+</div>
+
+<div class="charts">
+  <div class="card"><h3>기업별 총 생산 캐파 (천 장/월)</h3><div class="chart-wrap"><canvas id="capChart"></canvas></div></div>
+  <div class="card"><h3>국가별 캐파 비중</h3><div class="chart-wrap"><canvas id="countryChart"></canvas></div></div>
+  <div class="card"><h3>기업별 팹 수</h3><div class="chart-wrap"><canvas id="fabCountChart"></canvas></div></div>
+  <div class="card"><h3>최선단 공정 노드 (nm, 낮을수록 미세)</h3><div class="chart-wrap"><canvas id="nodeChart"></canvas></div></div>
+</div>
+
+<div class="table-sec">
+  <h3>📋 팹 상세 목록 <span id="cnt" style="color:var(--muted);font-weight:400"></span></h3>
+  <div class="hint">열 제목 클릭 = 정렬 · 행 클릭 = 지도에서 위치 보기</div>
+  <div class="tbl-scroll">
+  <table id="fabTable">
+    <thead><tr>
+      <th data-k="company">기업</th><th data-k="name">팹</th><th data-k="location">위치</th>
+      <th data-k="type">유형</th><th data-k="node">주요 공정</th><th data-k="capacity">캐파 (천 장/월)</th><th data-k="status">상태</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  <div id="empty">조건에 맞는 팹이 없습니다</div>
+  </div>
+</div>
+
+<footer>
+  ※ 캐파 수치는 공개 자료(TrendForce, SEMI, Tom's Hardware, 기업 IR 등) 기반 <b>추정치</b>이며 실제와 차이가 있을 수 있습니다. 건설중 팹은 계획 캐파 기준. · 데이터 기준: 2026년 상반기
+</footer>
+</div>
+
+<script>
+const COLORS={파운드리:'#4c9aff',메모리:'#f2555a',IDM:'#3fb950'};
+const TAGC={파운드리:'f',메모리:'m',IDM:'i'};
+
+// capacity: 천 장/월(k WPM, 12인치 환산 추정)
+const fabs=[
+ {company:'TSMC',name:'Fab 12 (GIGAFAB)',location:'대만 신주',lat:24.77,lng:121.01,type:'파운드리',node:'7nm~R&D',capacity:120,status:'운영중'},
+ {company:'TSMC',name:'Fab 14',location:'대만 타이난',lat:23.112,lng:120.265,type:'파운드리',node:'5~20nm',capacity:110,status:'운영중'},
+ {company:'TSMC',name:'Fab 15',location:'대만 타이중',lat:24.21,lng:120.618,type:'파운드리',node:'7~28nm',capacity:100,status:'운영중'},
+ {company:'TSMC',name:'Fab 18',location:'대만 타이난',lat:23.095,lng:120.29,type:'파운드리',node:'3~5nm',capacity:150,status:'운영중'},
+ {company:'TSMC',name:'Fab 20',location:'대만 신주(바오산)',lat:24.732,lng:120.997,type:'파운드리',node:'2nm',capacity:60,status:'운영중'},
+ {company:'TSMC',name:'Fab 22',location:'대만 가오슝',lat:22.73,lng:120.28,type:'파운드리',node:'2nm',capacity:40,status:'운영중'},
+ {company:'TSMC',name:'Fab 21 (Arizona)',location:'미국 애리조나 피닉스',lat:33.68,lng:-112.08,type:'파운드리',node:'3~4nm',capacity:30,status:'운영중'},
+ {company:'TSMC',name:'Fab 23 (JASM)',location:'일본 구마모토',lat:32.82,lng:130.76,type:'파운드리',node:'12~28nm',capacity:55,status:'운영중'},
+ {company:'TSMC',name:'Fab 16 (Nanjing)',location:'중국 난징',lat:31.90,lng:118.75,type:'파운드리',node:'16/28nm',capacity:40,status:'운영중'},
+ {company:'TSMC',name:'ESMC Dresden',location:'독일 드레스덴',lat:51.12,lng:13.76,type:'파운드리',node:'12~28nm',capacity:40,status:'건설중'},
+ {company:'삼성전자',name:'평택캠퍼스 P1~P4',location:'한국 평택',lat:37.00,lng:127.06,type:'메모리',node:'DRAM/NAND/파운드리',capacity:400,status:'운영중'},
+ {company:'삼성전자',name:'화성캠퍼스',location:'한국 화성',lat:37.20,lng:127.09,type:'메모리',node:'DRAM/3nm 파운드리',capacity:250,status:'운영중'},
+ {company:'삼성전자',name:'기흥캠퍼스',location:'한국 용인(기흥)',lat:37.28,lng:127.11,type:'메모리',node:'레거시/R&D',capacity:100,status:'운영중'},
+ {company:'삼성전자',name:'오스틴 S2',location:'미국 텍사스 오스틴',lat:30.15,lng:-97.66,type:'파운드리',node:'14~65nm',capacity:90,status:'운영중'},
+ {company:'삼성전자',name:'테일러 팹',location:'미국 텍사스 테일러',lat:30.58,lng:-97.41,type:'파운드리',node:'2~4nm',capacity:30,status:'건설중'},
+ {company:'삼성전자',name:'시안 팹',location:'중국 시안',lat:34.24,lng:108.87,type:'메모리',node:'NAND',capacity:230,status:'운영중'},
+ {company:'SK하이닉스',name:'이천 M10/M14/M16',location:'한국 이천',lat:37.28,lng:127.44,type:'메모리',node:'DRAM/HBM',capacity:330,status:'운영중'},
+ {company:'SK하이닉스',name:'청주 M11~M15X',location:'한국 청주',lat:36.64,lng:127.49,type:'메모리',node:'NAND/DRAM',capacity:300,status:'운영중'},
+ {company:'SK하이닉스',name:'용인 Y1',location:'한국 용인',lat:37.12,lng:127.20,type:'메모리',node:'DRAM(차세대)',capacity:150,status:'건설중'},
+ {company:'SK하이닉스',name:'우시 팹',location:'중국 우시',lat:31.57,lng:120.30,type:'메모리',node:'DRAM',capacity:180,status:'운영중'},
+ {company:'SK하이닉스',name:'다롄 팹',location:'중국 다롄',lat:38.91,lng:121.60,type:'메모리',node:'NAND',capacity:100,status:'운영중'},
+ {company:'인텔',name:'D1X (개발 팹)',location:'미국 오리건 힐스버러',lat:45.54,lng:-122.92,type:'IDM',node:'18A/R&D',capacity:60,status:'운영중'},
+ {company:'인텔',name:'Fab 52/62',location:'미국 애리조나 챈들러',lat:33.29,lng:-111.93,type:'IDM',node:'18A(1.8nm급)',capacity:70,status:'운영중'},
+ {company:'인텔',name:'Fab 9/11X',location:'미국 뉴멕시코 리오랜초',lat:35.28,lng:-106.66,type:'IDM',node:'첨단 패키징',capacity:40,status:'운영중'},
+ {company:'인텔',name:'Fab 34',location:'아일랜드 레익슬립',lat:53.38,lng:-6.52,type:'IDM',node:'Intel 4/3',capacity:60,status:'운영중'},
+ {company:'인텔',name:'Fab 28',location:'이스라엘 키르얏갓',lat:31.60,lng:34.77,type:'IDM',node:'Intel 7/10nm',capacity:70,status:'운영중'},
+ {company:'인텔',name:'오하이오 팹',location:'미국 오하이오 뉴올버니',lat:40.15,lng:-82.75,type:'IDM',node:'18A 이하(계획)',capacity:40,status:'건설중'},
+ {company:'마이크론',name:'보이시 팹 + R&D',location:'미국 아이다호 보이시',lat:43.52,lng:-116.17,type:'메모리',node:'DRAM',capacity:60,status:'운영중'},
+ {company:'마이크론',name:'히로시마 팹',location:'일본 히로시마',lat:34.38,lng:132.42,type:'메모리',node:'DRAM(1γ)',capacity:120,status:'운영중'},
+ {company:'마이크론',name:'타이중 팹',location:'대만 타이중',lat:24.20,lng:120.68,type:'메모리',node:'DRAM',capacity:130,status:'운영중'},
+ {company:'마이크론',name:'싱가포르 팹',location:'싱가포르',lat:1.445,lng:103.79,type:'메모리',node:'NAND/HBM',capacity:150,status:'운영중'},
+ {company:'마이크론',name:'클레이 메가팹',location:'미국 뉴욕 클레이',lat:43.18,lng:-76.20,type:'메모리',node:'DRAM(계획)',capacity:100,status:'건설중'},
+ {company:'키옥시아',name:'욧카이치 팹',location:'일본 미에 욧카이치',lat:34.95,lng:136.61,type:'메모리',node:'NAND(BiCS)',capacity:300,status:'운영중'},
+ {company:'키옥시아',name:'기타카미 팹',location:'일본 이와테 기타카미',lat:39.36,lng:141.15,type:'메모리',node:'NAND(BiCS)',capacity:100,status:'운영중'},
+ {company:'SMIC',name:'상하이 팹(린강 포함)',location:'중국 상하이',lat:31.19,lng:121.60,type:'파운드리',node:'7~28nm+',capacity:180,status:'운영중'},
+ {company:'SMIC',name:'베이징 팹',location:'중국 베이징',lat:39.79,lng:116.53,type:'파운드리',node:'24~28nm+',capacity:150,status:'운영중'},
+ {company:'SMIC',name:'선전 팹',location:'중국 선전',lat:22.61,lng:113.87,type:'파운드리',node:'28nm+',capacity:70,status:'운영중'},
+ {company:'SMIC',name:'톈진 팹',location:'중국 톈진',lat:39.12,lng:117.35,type:'파운드리',node:'28nm+',capacity:70,status:'운영중'},
+ {company:'UMC',name:'Fab 12A',location:'대만 타이난',lat:23.085,lng:120.255,type:'파운드리',node:'14~28nm',capacity:90,status:'운영중'},
+ {company:'UMC',name:'Fab 12i + 신팹',location:'싱가포르',lat:1.435,lng:103.745,type:'파운드리',node:'22~40nm',capacity:80,status:'운영중'},
+ {company:'UMC',name:'USJC (미에)',location:'일본 미에',lat:34.83,lng:136.52,type:'파운드리',node:'40~90nm',capacity:33,status:'운영중'},
+ {company:'글로벌파운드리스',name:'Fab 8',location:'미국 뉴욕 몰타',lat:42.97,lng:-73.79,type:'파운드리',node:'12~14nm',capacity:45,status:'운영중'},
+ {company:'글로벌파운드리스',name:'Fab 1',location:'독일 드레스덴',lat:51.03,lng:13.70,type:'파운드리',node:'22~28nm(FDX)',capacity:80,status:'운영중'},
+ {company:'글로벌파운드리스',name:'싱가포르 팹',location:'싱가포르',lat:1.39,lng:103.75,type:'파운드리',node:'40nm+',capacity:70,status:'운영중'},
+ {company:'TI',name:'셔먼 SM1/SM2',location:'미국 텍사스 셔먼',lat:33.71,lng:-96.65,type:'IDM',node:'아날로그 45~130nm',capacity:50,status:'운영중'},
+ {company:'TI',name:'리처드슨 RFAB',location:'미국 텍사스 리처드슨',lat:32.98,lng:-96.71,type:'IDM',node:'아날로그',capacity:60,status:'운영중'},
+ {company:'TI',name:'리하이 LFAB',location:'미국 유타 리하이',lat:40.43,lng:-111.89,type:'IDM',node:'아날로그/임베디드',capacity:40,status:'운영중'},
+ {company:'인피니언',name:'드레스덴 스마트파워팹',location:'독일 드레스덴',lat:51.135,lng:13.68,type:'IDM',node:'전력/아날로그',capacity:60,status:'운영중'},
+ {company:'인피니언',name:'필라흐 팹',location:'오스트리아 필라흐',lat:46.61,lng:13.85,type:'IDM',node:'전력(SiC/GaN)',capacity:40,status:'운영중'},
+ {company:'인피니언',name:'쿨림 팹',location:'말레이시아 쿨림',lat:5.37,lng:100.56,type:'IDM',node:'SiC 전력',capacity:30,status:'운영중'},
+ {company:'라피더스',name:'IIM-1',location:'일본 홋카이도 치토세',lat:42.79,lng:141.67,type:'파운드리',node:'2nm(파일럿)',capacity:10,status:'건설중'},
+];
+fabs.forEach((f,i)=>f.id=i);
+
+// ---- 통계 ----
+const totalCap=fabs.reduce((s,f)=>s+f.capacity,0);
+const companies=[...new Set(fabs.map(f=>f.company))];
+const operating=fabs.filter(f=>f.status==='운영중').length;
+document.getElementById('stats').innerHTML=`
+  <div class="stat"><div class="v">${companies.length}</div><div class="l">기업 수</div></div>
+  <div class="stat"><div class="v">${fabs.length}</div><div class="l">팹 (운영 ${operating} · 건설중 ${fabs.length-operating})</div></div>
+  <div class="stat"><div class="v">${(totalCap/1000).toFixed(2)}M</div><div class="l">총 캐파 (장/월, 12" 환산 추정)</div></div>
+  <div class="stat"><div class="v">${[...new Set(fabs.map(f=>f.location.split(' ')[0]))].length}</div><div class="l">국가 수</div></div>`;
+
+// ---- 지도 ----
+const map=L.map('map',{worldCopyJump:true,scrollWheelZoom:true}).setView([30,60],2);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'&copy; OpenStreetMap &copy; CARTO',maxZoom:12}).addTo(map);
+
+let activeCompany='전체', activeType='전체', activeStatus='전체', query='';
+const markerById={};
+function popupHtml(f){
+  return `<b>${f.company} · ${f.name}</b><br>📍 ${f.location}<br>⚙️ ${f.node}<br>📦 캐파: 약 ${f.capacity}천 장/월<br>상태: ${f.status==='운영중'?'🟢':'🟡'} ${f.status}`;
+}
+function renderMarkers(){
+  Object.values(markerById).forEach(m=>map.removeLayer(m));
+  // 큰 원 먼저 그려서 작은 원이 항상 위로 (겹침 클릭 가능)
+  visible().slice().sort((a,b)=>b.capacity-a.capacity).forEach(f=>{
+    const m=L.circleMarker([f.lat,f.lng],{
+      radius:Math.max(5,Math.sqrt(f.capacity)*1.15),
+      color:COLORS[f.type],weight:2,dashArray:f.status==='건설중'?'4 4':null,
+      fillColor:COLORS[f.type],fillOpacity:.45
+    }).bindPopup(popupHtml(f)).bindTooltip(`${f.company} ${f.name}`,{direction:'top',offset:[0,-6]});
+    m.addTo(map); markerById[f.id]=m;
+  });
+}
+function visible(){
+  const q=query.trim().toLowerCase();
+  return fabs.filter(f=>
+    (activeCompany==='전체'||f.company===activeCompany)&&
+    (activeType==='전체'||f.type===activeType)&&
+    (activeStatus==='전체'||f.status===activeStatus)&&
+    (!q||`${f.company} ${f.name} ${f.location} ${f.node}`.toLowerCase().includes(q))
+  );
+}
+function refresh(){renderMarkers();renderTable();}
+
+// ---- 필터/검색 ----
+function makeChips(el,items,getColor,onPick){
+  const c=document.getElementById(el);
+  items.forEach((it,i)=>{
+    const b=document.createElement('button');
+    b.className='chip'+(i===0?' active':'');
+    b.innerHTML=(getColor&&getColor(it)?`<span class="dot" style="background:${getColor(it)}"></span>`:'')+it;
+    b.onclick=()=>{c.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));b.classList.add('active');onPick(it);refresh();};
+    c.appendChild(b);
+  });
+}
+makeChips('companyFilters',['전체',...companies],null,v=>activeCompany=v);
+makeChips('typeFilters',['전체','파운드리','메모리','IDM'],t=>COLORS[t],v=>activeType=v);
+makeChips('statusFilters',['전체','운영중','건설중'],null,v=>activeStatus=v);
+document.getElementById('search')
