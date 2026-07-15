@@ -1,2 +1,7 @@
 openai>=1.40
-playwright>=1.45
+# Chromium 1194 리비전에 맞춰 고정(=1.56.0). 최신 playwright pip 패키지(예: 1.61.0)는
+# 더 최신 Chromium 리비전(1228)을 요구해서, 브라우저를 새로 받지 않고 재사용하는
+# 오프라인/CI 환경에서는 "Executable doesn't exist" 오류로 실행 자체가 실패한다.
+# `playwright install chromium`으로 브라우저를 직접 받는 환경이라면 상한 없이 최신 버전을
+# 써도 무방하다 (그 경우 이 핀을 풀어도 된다).
+playwright==1.56.0
