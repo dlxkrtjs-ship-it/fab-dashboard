@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><title>테스트 결과</title></head>
+<body>
+  <h1>검색 결과</h1>
+  <p id="result">결과 없음</p>
+  <a href="home.html">홈으로</a>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q") || "";
+    document.getElementById("result").textContent =
+      q ? ("검색어 '" + q + "'에 대한 결과: playwright 자동화 테스트 성공") : "결과 없음";
+  </script>
+</body>
+</html>
