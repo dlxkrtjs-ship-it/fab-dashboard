@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>로컬 LLM 하우스 설계 플랜</title>
+<meta name="description" content="로컬 LLM과 함께 사는 집 — 한국 부지 선정 체크리스트, 서버실·랙 설계 스펙, RTX PRO 6000 1장→4장 확장 로드맵과 예산, 전기료 비교">
+<meta property="og:title" content="로컬 LLM 하우스 설계 플랜">
+<meta property="og:description" content="부지 체크리스트 · 서버실 설계 · GPU 확장 로드맵 · 전기 계약별 요금 비교 (2026년 추정)">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --border:#30363d; --text:#e6edf3; --muted:#8b949e;
+    --blue:#4491f5; --red:#f2555a; --green:#3fb950; --accent:#d29922;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI','Malgun Gothic','Apple SD Gothic Neo',sans-serif;line-height:1.6}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  header{padding:34px 0 10px}
+  header h1{font-size:clamp(21px,4vw,28px);font-weight:700}
+  header p{color:var(--muted);font-size:13.5px;margin-top:8px}
+  header a{color:var(--blue);text-decoration:none}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;padding:16px 0 6px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 18px}
+  .stat .v{font-size:23px;font-weight:700}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:3px}
+  section{padding:20px 0 4px}
+  section>h2{font-size:17px;font-weight:700;padding-bottom:4px}
+  section>.sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+  .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+  .grid3 .card h3{font-size:14.5px;margin-bottom:8px}
+  .grid3 .card p{font-size:13px;color:var(--muted)}
+  .grid3 .card .big{font-size:15px;color:var(--text);font-weight:600}
+  /* checklist */
+  .check-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .check-group h3{font-size:14px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .check-group h3 .cnt{font-size:11.5px;color:var(--muted);font-weight:400}
+  .check-item{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #21262d;cursor:pointer;font-size:13px}
+  .check-item:last-child{border-bottom:none}
+  .check-item input{margin-top:3.5px;accent-color:var(--green);cursor:pointer;flex-shrink:0}
+  .check-item .why{display:block;color:var(--muted);font-size:12px;margin-top:1px}
+  .check-item.done>div{color:var(--muted);text-decoration:line-through;text-decoration-color:#484f58}
+  .hint{font-size:12px;color:var(--muted)}
+  /* tables */
+  .tbl-scroll{overflow-x:auto;border:1px solid var(--border);border-radius:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);min-width:640px}
+  th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+  th{background:#1c2129;color:var(--muted);font-weight:600;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  td.num,th.num{text-align:right;white-space:nowrap}
+  .tag{display:inline-block;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap}
+  .tag.p0{background:#2d2308;color:var(--accent)}
+  .tag.p1{background:#0d2a4d;color:var(--blue)}
+  .tag.p2{background:#12351c;color:var(--green)}
+  .tag.p3{background:#4d1518;color:var(--red)}
+  .bar-bg{background:#21262d;border-radius:4px;height:6px;width:110px;display:inline-block;vertical-align:middle;margin-left:10px}
+  .bar-fill{height:6px;border-radius:4px;display:block;background:var(--blue)}
+  /* chart */
+  .chart-wrap{position:relative;height:320px}
+  .legend{display:flex;gap:18px;padding:10px 2px 0;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+  .legend .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+  .assump{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.7}
+  details{margin-top:12px}
+  details summary{font-size:12.5px;color:var(--blue);cursor:pointer}
+  details .tbl-scroll{margin-top:10px}
+  footer{padding:26px 0 40px;color:var(--muted);font-size:12px;border-top:1px solid var(--border);margin-top:28px;line-height:1.8}
+  footer a{color:var(--blue);text-decoration:none}
+  @media(max-width:640px){.chart-wrap{height:260px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>🏠 로컬 LLM 하우스 설계 플랜</h1>
+  <p>로컬 LLM과 함께 사는 집 — 부지 선정부터 모듈형 랙 설계, RTX PRO 6000 확장 로드맵과 비용까지 · 2026년 7월 기준 추정치 · 토지·건물 비용 제외</p>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="v">~1.15억원</div><div class="l">풀빌드 누적 예산 (Phase 0~3)</div></div>
+  <div class="stat"><div class="v">384 GB</div><div class="l">최종 VRAM (RTX PRO 6000 ×4)</div></div>
+  <div class="stat"><div class="v">~1.2 kW</div><div class="l">4장 기준 상시 소비전력</div></div>
+  <div class="stat"><div class="v">-42%</div><div class="l">일반용 계약 시 전기료 절감 (4장)</div></div>
+</div>
+
+<section id="principles">
+  <h2>0. 핵심 설계 원칙</h2>
+  <p class="sub">GPU는 갈아끼우는 소모품, 집에 박히는 인프라가 진짜 투자다.</p>
+  <div class="grid3">
+    <div class="card">
+      <h3>⚡ 전력이 부지를 고른다</h3>
+      <p><span class="big">주택용 누진제를 피하는 것</span>이 한국에서 가장 큰 변수. 근생 용도를 포함해 서버실을 일반용(갑) 계약으로 분리하면 24시간 가동 요금이 절반 이하로 내려간다.</p>
+    </div>
+    <div class="card">
+      <h3>🧊 여유 용량 = 업그레이드 가능성</h3>
+      <p>지금 2kW가 필요해도 분전반은 <span class="big">10~15kW 기준</span>으로. 전기·공조·배관 여유만 확보하면 GPU 세대가 바뀌어도 집은 그대로 간다.</p>
+    </div>
+    <div class="card">
+      <h3>📦 표준 규격만 쓴다</h3>
+      <p>19인치 랙, 220V 전용회로, 광 콘딧, 표준 덕트. <span class="big">독자 규격 제로</span> — 10년 뒤 어떤 하드웨어가 나와도 수용 가능하게.</p>
+    </div>
+  </div>
+</section>
+
+<section id="site">
+  <h2>1. 부지 선정 체크리스트</h2>
+  <p class="sub">계약 전에 확인할 것들. 체크 상태는 이 브라우저에 저장됩니다.</p>
+  <div class="check-groups">
+    <div class="card check-group" data-group="power">
+      <h3>⚡ 전력 <span class="cnt"></span></h3>
+      <label class="check-item"><input type="checkbox"><div>삼상 380V 인입 가능 여부<span class="why">한전 배전선로에서 대지까지 거리 확인 — 멀수록 표준시설부담금 급증</span></div></label>
+      <label class="check-item"><input type="checkbox"><div>계약전력 10~15kW 증설 견적<span class="why">한전 사이버지점에서 사전 견적 가능</span></div></label>
+      <label class="check-item"><input type="checkbox"><div>근생 용도 포함 건축 → 일반용(갑) 계약 분리 가능<span class="why">누진제 회피의 핵심 — 용도지역이 근생 건축을 허용하는지</span></div></label>
+      <label class="check-item"><input type="checkbox"><div>태양광 설치 가능한 지붕 방위·면적 (선택)<span class="why">남향 지붕 30㎡ ≈ 5kW급, 상시 부하 일부 상쇄</span></div></label>
+    </div>
+    <div class="card check-group" data-group="network">
+      <h3>🌐 통신 <span class="cnt"></span></h3>
+      <label class="check-item"><input type="checkbox"><div>FTTH(광랜) 커버리지 — 10G 가능 여부<span class="why">KT·SKB·LGU+ 홈페이지에서 주소로 조회, 전원주택지 최대 함정</span></div></label>
+      <label class="check-item"><input type="checkbox"><div>통신사 2곳 이상 인입 가능 (회선 이중화)<span class="why">모델 다운로드·원격 접속용 예비 회선</span></div></label>
+    </div>
+    <div class="card check-group" data-group="legal">
+      <h3>📜 입지·법규 <span class="cnt"></span></h3>
+      <label class="check-item"><input type="checkbox"><div>용도지역 확인 — 계획관리지역 권장<span class="why">토지이음(eum.go.kr)에서 조회, 근생+주택 복합 건축 가능해야 함</span></div></label>
+      <label class="check-item"><input type="checkbox"><div>건폐율·용적률, 상하수도·정화조 조건</div></label>
+      <label class="check-item"><input type="checkbox"><div>침수·산사태 이력 없음<span class="why">홍수위험지도·생활안전지도 조회 — 서버실 침수는 전손</span></div></label>
+      <label class="check-item"><input type="checkbox"><div>이웃 주택과 충분한 이격<span class="why">실외기·블로워 팬 소음 민원 예방</span></div></label>
+    </div>
+    <div class="card check-group" data-group="env">
+      <h3>🌡️ 환경 <span class="cnt"></span></h3>
+      <label class="check-item"><input type="checkbox"><div>서버실을 북측 배치할 수 있는 대지 방위<span class="why">여름 일사 부하 최소화 → 공조 용량·전기료 절감</span></div></label>
+      <label class="check-item"><input type="checkbox"><div>여름 최고기온·습도 데이터 확인<span class="why">공조 용량 산정 근거 — 내륙 분지 지역은 여유율 상향</span></div></label>
+      <label class="check-item"><input type="checkbox"><div>분진 적은 환경 (비포장도로·농지 비산먼지)<span class="why">필터 교체 주기와 팬 수명에 직결</span></div></label>
+    </div>
+  </div>
+</section>
+
+<section id="room">
+  <h2>2. 서버실·랙 설계 스펙</h2>
+  <p class="sub">집 시공 단계(Phase 0)에 함께 시공할 것들 — 나중에 고치기 제일 비싼 부분.</p>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>항목</th><th>스펙</th><th>비고</th></tr></thead>
+      <tbody>
+        <tr><td><b>공간</b></td><td>3×4m 이상, 천장고 2.6m+, 42U 랙 1대 + 예비 1대 자리</td><td>출입문 폭 900mm 이상 (랙 반입)</td></tr>
+        <tr><td><b>전기</b></td><td>전용 분전반 15kW, 220V 30A 전용회로 ×4, 삼상 380V 예비 인입, 1종 접지</td><td>회로별 차단기 분리 — GPU 노드 추가 시 회로만 할당</td></tr>
+        <tr><td><b>냉각</b></td><td>전용 시스템 에어컨 5kW(1.5RT)급 + 외기도입 덕트, 수랭 대비 바닥 배관 슬리브</td><td>겨울엔 외기 냉방으로 전기료 절감, 슬리브는 시공 때만 싸다</td></tr>
+        <tr><td><b>네트워크</b></td><td>광케이블 콘딧 2계통 (서재·거실 방향), 랙 내 10G 백본</td><td>콘딧만 있으면 10G→100G 교체는 케이블 값</td></tr>
+        <tr><td><b>방음</b></td><td>차음문(Rw 35dB+), 벽체 차음 시공</td><td>Max-Q 블로워 팬 다수 = 생각보다 시끄러움</td></tr>
+        <tr><td><b>안전</b></td><td>UPS 3kVA 이상, 가스식(청정소화약제) 자동소화, 누수·온습도 센서 + 알림</td><td>정전 시 안전 종료 5분 확보가 목적</td></tr>
+        <tr><td><b>바닥</b></td><td>하중 500kg/㎡ 이상</td><td>풀장착 랙 + UPS 배터리 하중</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="roadmap">
+  <h2>3. 확장 로드맵 — GPU 1장 → 4장</h2>
+  <p class="sub">RTX PRO 6000 Blackwell Max-Q(96GB, 300W) 기준 · GPU 단가는 관부가세 포함 약 2,000만원(2026.7 시세, $13,250+α) · 금액은 추정치.</p>
+  <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>단계</th><th>시점·내용</th><th>돌릴 수 있는 모델 급</th><th class="num">단계 비용</th><th class="num">누적 예산</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="tag p0">Phase 0</span></td>
+          <td><b>집 시공 단계 — 인프라 일체</b><br><span class="hint">전기 증설·삼상 인입, 공조, 방음, 콘딧, 랙·UPS·PDU</span></td>
+          <td>—</td>
+          <td class="num">1,200~2,800만원</td>
+          <td class="num">~2,000만원<span class="bar-bg"><span class="bar-fill" style="width:17%"></span></span></td>
+        </tr>
+        <tr>
+          <td><span class="tag p1">Phase 1</span></td>
+          <td><b>GPU 1장 · VRAM 96GB</b><br><span class="hint">GPU 2,000 + 서버 플랫폼 1,000 (Threadripper PRO/EPYC, RAM 256GB, 2kW PSU, NVMe 8TB)</span></td>
+          <td>70B급 4bit + 초장문 컨텍스트, 30B급 FP8 동시 서빙</td>
+          <td class="num">~3,000만원</td>
+          <td class="num">~5,000만원<span class="bar-bg"><span class="bar-fill" style="width:43%"></span></span></td>
+        </tr>
+        <tr>
+          <td><span class="tag p2">Phase 2</span></td>
+          <td><b>GPU 2장 · VRAM 192GB</b><br><span class="hint">GPU 추가 2,000 + RAM·스토리지 증설 200</span></td>
+          <td>123B급, 대형 MoE 4bit, 멀티유저 동시 서빙</td>
+          <td class="num">~2,200만원</td>
+          <td class="num">~7,200만원<span class="bar-bg"><span class="bar-fill" style="width:63%"></span></span></td>
+        </tr>
+        <tr>
+          <td><span class="tag p3">Phase 3</span></td>
+          <td><b>GPU 4장 · VRAM 384GB</b><br><span class="hint">GPU 추가 2장 4,000 + PSU 이중화·냉각 보강 300</span></td>
+          <td>400B급 4bit, 프론티어급 오픈웨이트 MoE</td>
+          <td class="num">~4,300만원</td>
+          <td class="num">~11,500만원<span class="bar-bg"><span class="bar-fill" style="width:100%"></span></span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="assump">※ 각 Phase는 독립적으로 미룰 수 있다 — Phase 0만 시공 시점에 고정. GPU 가격은 GDDR7 수급난으로 고점(1년 새 +55%)이므로, 실구매 시점 시세 재확인 필수. 다음 세대 GPU로 갈아타도 Phase 0 인프라는 그대로 유효.</p>
+</section>
+
+<section id="electricity">
+  <h2>4. 전기 계약별 월 전기료 비교</h2>
+  <p class="sub">같은 서버를 돌려도 계약 종별에 따라 요금이 이렇게 갈린다 — 부지·용도 설계가 중요한 이유.</p>
+  <div class="card">
+    <div class="chart-wrap"><canvas id="elecChart" role="img" aria-label="GPU 장수별 월 전기료: 주택용 누진제 대비 일반용(갑) 계약 비교 막대 차트"></canvas></div>
+    <div class="legend">
+      <span><span class="dot" style="background:#f2555a"></span>주택용(저압) — 누진 3단계 구간</span>
+      <span><span class="dot" style="background:#4491f5"></span>일반용(갑) 저압 — 기본요금 포함</span>
+    </div>
+    <p class="assump">
+      가정: GPU당 평균 250W(Max-Q 300W 캡, 추론 부하 평균) + 시스템 기본 150W, 24시간 가동 → 1장 288kWh · 2장 468kWh · 4장 828kWh/월.
+      주택용은 생활용 350kWh를 이미 쓰는 가구 기준으로 서버 사용량 전체가 누진 3단계(약 365원/kWh, 부가세·기금 포함)에 얹힘.
+      일반용(갑)은 약 152원/kWh + 계약전력 기본요금. 2026년 요금표 기준 추정치이며 계절·연료비조정에 따라 변동.
+    </p>
+    <details>
+      <summary>표로 보기</summary>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr><th>구성</th><th class="num">월 사용량</th><th class="num">주택용(누진)</th><th class="num">일반용(갑)</th><th class="num">월 차액</th><th class="num">연간 차액</th></tr></thead>
+          <tbody>
+            <tr><td>GPU 1장 (96GB)</td><td class="num">288 kWh</td><td class="num">10.5만원</td><td class="num">7.5만원</td><td class="num">3.0만원</td><td class="num">36만원</td></tr>
+            <tr><td>GPU 2장 (192GB)</td><td class="num">468 kWh</td><td class="num">17.1만원</td><td class="num">10.2만원</td><td class="num">6.9만원</td><td class="num">83만원</td></tr>
+            <tr><td>GPU 4장 (384GB)</td><td class="num">828 kWh</td><td class="num">30.2만원</td><td class="num">17.5만원</td><td class="num">12.7만원</td><td class="num">152만원</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <p><b>참고 자료</b> ·
+    <a href="https://www.thundercompute.com/blog/nvidia-rtx-pro-6000-pricing" target="_blank" rel="noopener">RTX PRO 6000 시세 (Thunder Compute, 2026.7)</a> ·
+    <a href="https://videocardz.com/newz/nvidia-now-lists-rtx-pro-6000-blackwell-96gb-gpu-at-13250" target="_blank" rel="noopener">NVIDIA 공식가 $13,250 (VideoCardz)</a> ·
+    <a href="https://vrlatech.com/rtx-pro-6000-blackwell-workstation-vs-server-edition/" target="_blank" rel="noopener">Workstation vs Max-Q vs Server (VRLA Tech)</a> ·
+    <a href="https://forum.level1techs.com/t/rtx-pro-6000-600w-vs-300w-performance/242017" target="_blank" rel="noopener">600W vs 300W 성능 (Level1Techs)</a></p>
+  <p>모든 금액·요금은 2026년 7월 기준 추정치로 실제 견적·요금표와 다를 수 있음 · 전기요금은 한전 요금표 개정 시 재계산 필요 · <a href="index.html">← 팹 대시보드로</a></p>
+</footer>
+
+</div>
+
+<script>
+// 체크리스트 localStorage 저장
+document.querySelectorAll('.check-group').forEach(group=>{
+  const key='llmhouse-'+group.dataset.group;
+  const boxes=[...group.querySelectorAll('input[type=checkbox]')];
+  const saved=JSON.parse(localStorage.getItem(key)||'[]');
+  const update=()=>{
+    boxes.forEach((b,i)=>b.closest('.check-item').classList.toggle('done',b.checked));
+    group.querySelector('.cnt').textContent=boxes.filter(b=>b.checked).length+'/'+boxes.length;
+    localStorage.setItem(key,JSON.stringify(boxes.map(b=>b.checked)));
+  };
+  boxes.forEach((b,i)=>{b.checked=!!saved[i];b.addEventListener('change',update);});
+  update();
+});
+
+// 전기료 비교 차트
+const css=getComputedStyle(document.documentElement);
+Chart.defaults.color=css.getPropertyValue('--muted').trim();
+Chart.defaults.borderColor='#21262d';
+Chart.defaults.font.family=getComputedStyle(document.body).fontFamily;
+new Chart(document.getElementById('elecChart'),{
+  type:'bar',
+  data:{
+    labels:['GPU 1장 (288kWh)','GPU 2장 (468kWh)','GPU 4장 (828kWh)'],
+    datasets:[
+      {label:'주택용(저압) 누진',data:[10.5,17.1,30.2],backgroundColor:'#f2555a',borderRadius:{topLeft:4,topRight:4},borderSkipped:'bottom',maxBarThickness:44},
+      {label:'일반용(갑) 저압',data:[7.5,10.2,17.5],backgroundColor:'#4491f5',borderRadius:{topLeft:4,topRight:4},borderSkipped:'bottom',maxBarThickness:44}
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    interaction:{mode:'index',intersect:false},
+    plugins:{
+      legend:{display:false},
+      tooltip:{
+        backgroundColor:'#161b22',borderColor:'#30363d',borderWidth:1,
+        titleColor:'#e6edf3',bodyColor:'#e6edf3',padding:10,
+        callbacks:{label:c=>` ${c.dataset.label}: 월 ${c.parsed.y}만원`}
+      }
+    },
+    scales:{
+      x:{grid:{display:false}},
+      y:{beginAtZero:true,title:{display:true,text:'월 전기료 (만원)'},grid:{color:'#21262d'},ticks:{callback:v=>v+'만'}}
+    },
+    datasets:{bar:{categoryPercentage:.62,barPercentage:.9}}
+  }
+});
+</script>
+</body>
+</html>
